@@ -598,7 +598,6 @@ class MainWindow(QMainWindow):
       db = settings.Session()
       nodes = db.query(catalog.NodeGraph).filter_by(parentid=parentid).all()
       for node in nodes:
-        #print (f'node> {node.nodeid}')
         if not parentid:
           self.add_root_node(name=node.basename, uuid=node.nodeid, icon=node.icon)
         else:
@@ -670,9 +669,7 @@ class MainWindow(QMainWindow):
       idx = None
       if parentid:
         rootNode = self.treeModel.invisibleRootItem()
-        print ('---')
         for item in self.iterItems(rootNode):
-          print ('> '+item.data(Qt.DisplayRole))
           if item.data(ROLE_NODE_UUID) == parentid:
             parent_node = item
             break
