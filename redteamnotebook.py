@@ -532,6 +532,10 @@ class MainWindow(QMainWindow):
         new_port_action.triggered.connect(self.add_port)
         menu.addAction(new_port_action)
 
+        delete_node_action = QAction("&Remove Node")
+        delete_node_action.triggered.connect(self.delete_node)
+        menu.addAction(delete_node_action)
+
       ## show our menu
       menu.exec_(self.sender().viewport().mapToGlobal(position))
 
@@ -582,6 +586,38 @@ class MainWindow(QMainWindow):
 
       ## add port to protocol node
       portid = self.add_node(name=f'{port} {desc}[{state}]', parentid=uuid, icon=icon)
+
+    def delete_node(self):
+      node = self.treeView.selectedIndexes()[0]
+      if not node: return None
+
+      db = settings.Session()
+      rootNode = self.treeModel.itemFromIndex(node)
+
+      ## remove children from catalog
+      for item in self.iterItems(rootNode):
+        ## remove node graph
+        db_node = db.query(catalog.NodeGraph).get(item.data(ROLE_NODE_UUID))
+        if db_node:
+          db.delete(db_node)
+        ## remove note
+        db_node = db.query(catalog.Note).get(item.data(ROLE_NODE_UUID)) 
+        if db_node:
+          db.delete(db_node)
+
+
+      ## remove node from catalog
+      db_node = db.query(catalog.NodeGraph).get(rootNode.data(ROLE_NODE_UUID)) 
+      if db_node:
+        db.delete(db_node)
+      db_node = db.query(catalog.Note).get(rootNode.data(ROLE_NODE_UUID)) 
+      if db_node:
+        db.delete(db_node)
+
+      db.commit()
+
+      ## remove node from tree
+      self.treeModel.removeRow(node.row(), parent=node.parent())
 
     def iterItems(self, root):
       def recurse(parent):
