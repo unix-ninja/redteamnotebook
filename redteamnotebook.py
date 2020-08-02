@@ -1,4 +1,7 @@
 # TODO: error checks for insert nodes (text + parentid should be unique)
+# TODO: better markdown editing
+# TODO: confirm delete
+# TODO: open multiple notebooks
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -63,7 +66,8 @@ class CAction(QWidgetAction):
     count = len(icons)
     rows = count // round(count ** .5)
     for row in range(rows):
-      for column in range(ceil(count / rows)):
+      #for column in range(ceil(count / rows)):
+      for column in range(5):
         if not len(icons): break
         icon = ""
         while len(icons) and not icon.endswith('.png'):
@@ -588,6 +592,12 @@ class MainWindow(QMainWindow):
       portid = self.add_node(name=f'{port} {desc}[{state}]', parentid=uuid, icon=icon)
 
     def delete_node(self):
+      node = self.treeView.selectedIndexes()[0]
+      if not node: return None
+      confirmed = QMessageBox.question(self, "Delete", f"Are you sure you want to delete '{node.data(Qt.DisplayRole)}'?", QMessageBox.Yes|QMessageBox.No)
+      if confirmed == QMessageBox.No:
+        return
+
       node = self.treeView.selectedIndexes()[0]
       if not node: return None
 
