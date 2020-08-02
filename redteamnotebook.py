@@ -1,6 +1,5 @@
 # TODO: error checks for insert nodes (text + parentid should be unique)
 # TODO: better markdown editing
-# TODO: confirm delete
 # TODO: open multiple notebooks
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -11,7 +10,9 @@ import settings
 import sqlalchemy
 import catalog
 
+import hashlib
 import os
+import shutil
 import sys
 import uuid
 
@@ -22,6 +23,7 @@ IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
 NODE_ICON_PATH = os.path.abspath('images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
+NOTEBOOK_PATH = os.path.abspath('.notebook')
 
 
 def hexuuid():
@@ -140,6 +142,7 @@ class TextEdit(QTextEdit):
     cursor = self.textCursor()
     document = self.document()
     max_width = self.size().width()
+    staging_file = NOTEBOOK_PATH+'/images/stage.png'
 
     if source.hasUrls():
 
@@ -147,12 +150,21 @@ class TextEdit(QTextEdit):
         file_ext = splitext(str(u.toLocalFile()))
         if u.isLocalFile() and file_ext in IMAGE_EXTENSIONS:
           image = QImage(u.toLocalFile())
+          image.save(os.path.abspath(staging_file))
+          ## get a file hash to rename the staging file
+          img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
+          print (img_hash)
+          ## save the file in the notebook
+          saved_file = f"{NOTEBOOK_PATH}/images/{img_hash}.png"
+          shutil.move(staging_file, saved_file)
+          # TODO: Resize is broken
           ## resize img if it's larger than the editor
           if image.width() > max_width:
             image = image.scaledToWidth(max_width)
           ## add image to the doc
           document.addResource(QTextDocument.ImageResource, u, image)
-          cursor.insertImage(u.toLocalFile())
+          #cursor.insertImage(u.toLocalFile())
+          cursor.insertImage(saved_file)
 
         else:
           ## If we hit a non-image or non-local URL break the loop and fall out
@@ -165,9 +177,10 @@ class TextEdit(QTextEdit):
 
 
     elif source.hasImage():
+      ## clipboard content will be processed here
       image = source.imageData()
       uuid = hexuuid()
-      document.addResource(QTextDocument.ImageResource, uuid, image)
+      document.addResource(QTextDocument.ImageResource, int(uuid, 16), image)
       cursor.insertImage(uuid)
       return
 
