@@ -27,7 +27,7 @@ IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
 NODE_ICON_PATH = os.path.abspath('images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
-NOTEBOOK_PATH = os.path.abspath('.notebook')
+NOTEBOOK_PATH = None
 
 
 def hexuuid():
@@ -929,8 +929,38 @@ class MainWindow(QMainWindow):
     def edit_toggle_wrap(self):
         self.editor.setLineWrapMode( 1 if self.editor.lineWrapMode() == 0 else 0 )
 
+def init_sql(sql_path):
+  print ('[Info] Setting up sql...')
+  ## create our tables
+  try:
+    db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=True)
+    catalog.NodeGraph.__table__.create(bind=db_engine, checkfirst=True)
+    catalog.Note.__table__.create(bind=db_engine, checkfirst=True)
+  except:
+    raise
+  
+def init_notebook():
+  global NOTEBOOK_PATH
+  NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(settings.default_notebook))
+
+  ## create the default notebook if it doesn't exist
+  if not os.path.exists(NOTEBOOK_PATH):
+    os.mkdir(NOTEBOOK_PATH)
+    if not os.path.exists(NOTEBOOK_PATH):
+      print('[Err] Unable to create default notebook.')
+      sys.exit(1)
+  if not os.path.exists(NOTEBOOK_PATH+'/images'):
+    os.mkdir(NOTEBOOK_PATH+'/images')
+  if not os.path.exists(NOTEBOOK_PATH+'/catalog.sqlite'):
+    init_sql(NOTEBOOK_PATH)
+  if not settings.Session:
+    db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True)
+    settings.Session = sqlalchemy.orm.sessionmaker(bind=db_engine)
+  print ('[Info] Notebook created.')
 
 if __name__ == '__main__':
+  init_notebook()
+  
   app = QApplication(sys.argv)
   app.setApplicationName("Redteam Notebook")
 
