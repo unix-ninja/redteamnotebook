@@ -18,7 +18,11 @@ import uuid
 
 from math import ceil
 
-FONT_SIZES = [8, 12, 14, 18, 24, 36, 48, 64, 72]
+#FONT_SIZES = [8, 12, 14, 18, 24, 36, 48, 64, 72]
+TEXT_STYLES = ['Title', 'Heading', 'Subheading', 'Body']
+TEXT_LEVEL = {"Body": 0, "Title": 1, "Heading": 2, "Subheading": 3}
+TEXT_SIZE = {"Body": 14, "Title": 26, "Heading": 20, "Subheading": 14}
+TEXT_WEIGHT = {"Body": 50, "Title": 75, "Heading": 75, "Subheading": 75}
 IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
 NODE_ICON_PATH = os.path.abspath('images/nodes')
@@ -153,7 +157,6 @@ class TextEdit(QTextEdit):
           image.save(os.path.abspath(staging_file))
           ## get a file hash to rename the staging file
           img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
-          print (img_hash)
           ## save the file in the notebook
           saved_file = f"{NOTEBOOK_PATH}/images/{img_hash}.png"
           shutil.move(staging_file, saved_file)
@@ -186,17 +189,54 @@ class TextEdit(QTextEdit):
 
     super(TextEdit, self).insertFromMimeData(source)
 
-  def onTextChanged(self):
+  def keyPressEvent(self, event):
+    if (event.key() == Qt.Key_Return):
+      # we want to insert a regular formatted block when enter is pressed
+      cursor = self.textCursor()
+      blockFormat = QTextBlockFormat()
+      blockFormat.setHeadingLevel(0)
+      charFormat = QTextCharFormat()
+      charFormat.setFontPointSize(14)
+      cursor.insertBlock(blockFormat, charFormat)
+    elif (event.key() == Qt.Key_Escape):
+      cursor = self.textCursor()
+      block = cursor.blockNumber()
+      bf = cursor.blockFormat()
+      cf = cursor.charFormat()
+
+      print ('block: '+ str(block))
+      print ('weight: '+ str(cf.fontWeight()))
+    else:
+      QTextEdit.keyPressEvent(self, event)
+
+  def onContentsChanged(self):
     if self.updating: return
     self.save_doc = True
-    return
-    cursor = self.textCursor()
-    md = self.toMarkdown()
     self.updating = True
-    self.setMarkdown(md)
-    self.setTextCursor(cursor)
+
+    ## we can do some format checking here later if we want to
+
     self.updating = False
+
     return
+
+  def set_style(self, style):
+    if style not in TEXT_STYLES:
+      return
+    
+    ## set our cursor
+    cursor = self.textCursor()
+    cursor.movePosition(QTextCursor.StartOfBlock)
+    cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+
+    ## set our formatting
+    blockFormat = QTextBlockFormat()
+    blockFormat.setHeadingLevel(TEXT_LEVEL[style])
+    charFormat = QTextCharFormat()
+    charFormat.setFontPointSize(TEXT_SIZE[style])
+    charFormat.setFontWeight(TEXT_WEIGHT[style])
+    cursor.setBlockFormat(blockFormat)
+    cursor.setCharFormat(charFormat)
 
 class CDialog(QDialog):
 
@@ -250,10 +290,13 @@ class MainWindow(QMainWindow):
 
         self.editor = TextEdit()
         self.editor.updating = False
+        self.editor.new_line = False
         # Setup the QTextEdit editor configuration
         self.editor.setAutoFormatting(QTextEdit.AutoAll)
         self.editor.selectionChanged.connect(self.update_format)
-        self.editor.textChanged.connect(self.editor.onTextChanged)
+        self.editor.cursorPositionChanged.connect(self.monitor_style)
+        #self.editor.textChanged.connect(self.editor.onTextChanged)
+        #self.editor.contentsChange.connect(self.editor.onContentsChanged)
         # Initialize default font size.
         font = QFont('Helvetica', 14)
         self.editor.setFont(font)
@@ -398,13 +441,20 @@ class MainWindow(QMainWindow):
         self.fonts.currentFontChanged.connect(self.editor.setCurrentFont)
         #format_toolbar.addWidget(self.fonts)
 
-        self.fontsize = QComboBox()
-        self.fontsize.addItems([str(s) for s in FONT_SIZES])
+        self.stylebox = QComboBox()
+        self.stylebox.addItems(TEXT_STYLES)
 
-        # Connect to the signal producing the text of the current selection. Convert the string to float
-        # and set as the pointsize. We could also use the index + retrieve from FONT_SIZES.
-        self.fontsize.currentIndexChanged[str].connect(lambda s: self.editor.setFontPointSize(float(s)) )
-        format_toolbar.addWidget(self.fontsize)
+        #self.fontsize = QComboBox()
+        #self.fontsize.addItems([str(s) for s in FONT_SIZES])
+
+        ## Connect to the signal producing the text of the current selection. Convert the string to float
+        ## and set as the pointsize. We could also use the index + retrieve from FONT_SIZES.
+        #self.fontsize.currentIndexChanged[str].connect(lambda s: self.editor.setFontPointSize(float(s)) )
+        #format_toolbar.addWidget(self.fontsize)
+
+        self.stylebox.setCurrentIndex(3)
+        self.stylebox.currentIndexChanged[str].connect(lambda s: self.setStyle(s) )
+        format_toolbar.addWidget(self.stylebox)
 
         self.bold_action = QAction(QIcon(os.path.join('images', 'edit-bold.png')), "Bold", self)
         self.bold_action.setStatusTip("Bold")
@@ -472,7 +522,7 @@ class MainWindow(QMainWindow):
         # A list of all format-related widgets/actions, so we can disable/enable signals when updating.
         self._format_actions = [
             self.fonts,
-            self.fontsize,
+        #    self.fontsize,
             self.bold_action,
             self.italic_action,
             self.underline_action,
@@ -502,6 +552,24 @@ class MainWindow(QMainWindow):
         timer = QTimer(self)
         timer.timeout.connect(self.timeout_save)
         timer.start(5000)
+
+    def monitor_style(self):
+      if self.editor.updating == True:
+        return
+      ## set our cursor
+      cursor = self.editor.textCursor()
+      blockFormat = cursor.blockFormat()
+      
+      ## lock updates before we change the style
+      self.editor.updating = True
+      ## make sure our style box reflects the style under the cursor
+      for level in TEXT_LEVEL:
+        if (blockFormat.headingLevel() == TEXT_LEVEL[level]):
+          self.stylebox.setCurrentText(level)
+      self.editor.updating = False
+      
+    def setStyle(self, style):
+      self.editor.set_style(style)
 
     def timeout_save(self):
       if self.editor.save_doc:
@@ -705,6 +773,8 @@ class MainWindow(QMainWindow):
         new_node.setIcon(QIcon(os.path.join(NODE_ICON_PATH, icon)))
       rootNode.appendRow(new_node)
       self.docs[uuid] = QTextDocument()
+      doc = self.docs[uuid]
+      doc.contentsChange.connect(self.editor.onContentsChanged)
 
       if record_catalog:
         ## record in catalog
@@ -779,7 +849,7 @@ class MainWindow(QMainWindow):
 
         self.fonts.setCurrentFont(self.editor.currentFont())
         # Nasty, but we get the font-size as a float but want it was an int
-        self.fontsize.setCurrentText(str(int(self.editor.fontPointSize())))
+        #self.fontsize.setCurrentText(str(int(self.editor.fontPointSize())))
 
         self.italic_action.setChecked(self.editor.fontItalic())
         self.underline_action.setChecked(self.editor.fontUnderline())
