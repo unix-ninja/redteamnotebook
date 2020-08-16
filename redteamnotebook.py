@@ -1,6 +1,5 @@
 # TODO: error checks for insert nodes (text + parentid should be unique)
 # TODO: better markdown editing
-# TODO: open multiple notebooks
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -18,6 +17,7 @@ import uuid
 
 from math import ceil
 
+APP_PATH = os.path.dirname(os.path.realpath(__file__))+'/'
 #FONT_SIZES = [8, 12, 14, 18, 24, 36, 48, 64, 72]
 TEXT_STYLES = ['Title', 'Heading', 'Subheading', 'Body']
 TEXT_LEVEL = {"Body": 0, "Title": 1, "Heading": 2, "Subheading": 3}
@@ -25,7 +25,7 @@ TEXT_SIZE = {"Body": 14, "Title": 26, "Heading": 20, "Subheading": 14}
 TEXT_WEIGHT = {"Body": 50, "Title": 75, "Heading": 75, "Subheading": 75}
 IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
-NODE_ICON_PATH = os.path.abspath('images/nodes')
+NODE_ICON_PATH = os.path.abspath(APP_PATH+'/images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
 NOTEBOOK_PATH = None
 
@@ -146,7 +146,7 @@ class TextEdit(QTextEdit):
     cursor = self.textCursor()
     document = self.document()
     max_width = self.size().width()
-    staging_file = NOTEBOOK_PATH+'/images/stage.png'
+    staging_file = 'images/stage.png'
 
     if source.hasUrls():
 
@@ -158,7 +158,7 @@ class TextEdit(QTextEdit):
           ## get a file hash to rename the staging file
           img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
           ## save the file in the notebook
-          saved_file = f"{NOTEBOOK_PATH}/images/{img_hash}.png"
+          saved_file = f"images/{img_hash}.png"
           shutil.move(staging_file, saved_file)
           # TODO: Resize is broken
           ## resize img if it's larger than the editor
@@ -302,6 +302,8 @@ class MainWindow(QMainWindow):
         self.editor.setFont(font)
         # We need to repeat the size to init the current format.
         self.editor.setFontPointSize(14)
+        ## start editor disabled, until we click a node
+        self.editor.setReadOnly(True)
 
         # self.path holds the path of the currently open file.
         # If none, we haven't got a file open yet (or creating new).
@@ -315,7 +317,7 @@ class MainWindow(QMainWindow):
         rootNode = self.treeModel.invisibleRootItem()
 
         ## populate our tree
-        self.load_nodes_from_catalog()
+        self.load_nodes_from_catalog(clean=True)
 
         ## use the model with our view
         self.treeView.setModel(self.treeModel)
@@ -341,19 +343,19 @@ class MainWindow(QMainWindow):
         self.addToolBar(file_toolbar)
         file_menu = self.menuBar().addMenu("&File")
 
-        open_file_action = QAction(QIcon(os.path.join('images', 'blue-folder-open-document.png')), "Open file...", self)
+        open_file_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'blue-folder-open-document.png')), "Open file...", self)
         open_file_action.setStatusTip("Open file")
         open_file_action.triggered.connect(self.file_open)
         file_menu.addAction(open_file_action)
         file_toolbar.addAction(open_file_action)
 
-        new_root_node_action = QAction(QIcon(os.path.join('images', 'add-root-node.png')), "New Root Node", self)
+        new_root_node_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'add-root-node.png')), "New Root Node", self)
         new_root_node_action.setStatusTip("New Root Node")
         new_root_node_action.triggered.connect(self.add_root_node)
         file_menu.addAction(new_root_node_action)
         file_toolbar.addAction(new_root_node_action)
 
-        new_node_action = QAction(QIcon(os.path.join('images', 'add-node.png')), "New Node", self)
+        new_node_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'add-node.png')), "New Node", self)
         new_node_action.setStatusTip("New Node")
         new_node_action.triggered.connect(self.add_node)
         file_menu.addAction(new_node_action)
@@ -371,7 +373,7 @@ class MainWindow(QMainWindow):
         #file_menu.addAction(saveas_file_action)
         #file_toolbar.addAction(saveas_file_action)
 
-        print_action = QAction(QIcon(os.path.join('images', 'printer.png')), "Print...", self)
+        print_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'printer.png')), "Print...", self)
         print_action.setStatusTip("Print current page")
         print_action.triggered.connect(self.file_print)
         file_menu.addAction(print_action)
@@ -382,12 +384,12 @@ class MainWindow(QMainWindow):
         self.addToolBar(edit_toolbar)
         edit_menu = self.menuBar().addMenu("&Edit")
 
-        undo_action = QAction(QIcon(os.path.join('images', 'arrow-curve-180-left.png')), "Undo", self)
+        undo_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'arrow-curve-180-left.png')), "Undo", self)
         undo_action.setStatusTip("Undo last change")
         undo_action.triggered.connect(self.editor.undo)
         edit_menu.addAction(undo_action)
 
-        redo_action = QAction(QIcon(os.path.join('images', 'arrow-curve.png')), "Redo", self)
+        redo_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'arrow-curve.png')), "Redo", self)
         redo_action.setStatusTip("Redo last change")
         redo_action.triggered.connect(self.editor.redo)
         edit_toolbar.addAction(redo_action)
@@ -395,28 +397,28 @@ class MainWindow(QMainWindow):
 
         edit_menu.addSeparator()
 
-        cut_action = QAction(QIcon(os.path.join('images', 'scissors.png')), "Cut", self)
+        cut_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'scissors.png')), "Cut", self)
         cut_action.setStatusTip("Cut selected text")
         cut_action.setShortcut(QKeySequence.Cut)
         cut_action.triggered.connect(self.editor.cut)
         edit_toolbar.addAction(cut_action)
         edit_menu.addAction(cut_action)
 
-        copy_action = QAction(QIcon(os.path.join('images', 'document-copy.png')), "Copy", self)
+        copy_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'document-copy.png')), "Copy", self)
         copy_action.setStatusTip("Copy selected text")
         cut_action.setShortcut(QKeySequence.Copy)
         copy_action.triggered.connect(self.editor.copy)
         edit_toolbar.addAction(copy_action)
         edit_menu.addAction(copy_action)
 
-        paste_action = QAction(QIcon(os.path.join('images', 'clipboard-paste-document-text.png')), "Paste", self)
+        paste_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'clipboard-paste-document-text.png')), "Paste", self)
         paste_action.setStatusTip("Paste from clipboard")
         cut_action.setShortcut(QKeySequence.Paste)
         paste_action.triggered.connect(self.editor.paste)
         edit_toolbar.addAction(paste_action)
         edit_menu.addAction(paste_action)
 
-        select_action = QAction(QIcon(os.path.join('images', 'selection-input.png')), "Select all", self)
+        select_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'selection-input.png')), "Select all", self)
         select_action.setStatusTip("Select all text")
         cut_action.setShortcut(QKeySequence.SelectAll)
         select_action.triggered.connect(self.editor.selectAll)
@@ -424,7 +426,7 @@ class MainWindow(QMainWindow):
 
         edit_menu.addSeparator()
 
-        wrap_action = QAction(QIcon(os.path.join('images', 'arrow-continue.png')), "Wrap text to window", self)
+        wrap_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'arrow-continue.png')), "Wrap text to window", self)
         wrap_action.setStatusTip("Toggle wrap text to window")
         wrap_action.setCheckable(True)
         wrap_action.setChecked(True)
@@ -456,7 +458,7 @@ class MainWindow(QMainWindow):
         self.stylebox.currentIndexChanged[str].connect(lambda s: self.setStyle(s) )
         format_toolbar.addWidget(self.stylebox)
 
-        self.bold_action = QAction(QIcon(os.path.join('images', 'edit-bold.png')), "Bold", self)
+        self.bold_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-bold.png')), "Bold", self)
         self.bold_action.setStatusTip("Bold")
         self.bold_action.setShortcut(QKeySequence.Bold)
         self.bold_action.setCheckable(True)
@@ -464,7 +466,7 @@ class MainWindow(QMainWindow):
         format_toolbar.addAction(self.bold_action)
         format_menu.addAction(self.bold_action)
 
-        self.italic_action = QAction(QIcon(os.path.join('images', 'edit-italic.png')), "Italic", self)
+        self.italic_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-italic.png')), "Italic", self)
         self.italic_action.setStatusTip("Italic")
         self.italic_action.setShortcut(QKeySequence.Italic)
         self.italic_action.setCheckable(True)
@@ -472,7 +474,7 @@ class MainWindow(QMainWindow):
         format_toolbar.addAction(self.italic_action)
         format_menu.addAction(self.italic_action)
 
-        self.underline_action = QAction(QIcon(os.path.join('images', 'edit-underline.png')), "Underline", self)
+        self.underline_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-underline.png')), "Underline", self)
         self.underline_action.setStatusTip("Underline")
         self.underline_action.setShortcut(QKeySequence.Underline)
         self.underline_action.setCheckable(True)
@@ -482,28 +484,28 @@ class MainWindow(QMainWindow):
 
         format_menu.addSeparator()
 
-        self.alignl_action = QAction(QIcon(os.path.join('images', 'edit-alignment.png')), "Align left", self)
+        self.alignl_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-alignment.png')), "Align left", self)
         self.alignl_action.setStatusTip("Align text left")
         self.alignl_action.setCheckable(True)
         self.alignl_action.triggered.connect(lambda: self.editor.setAlignment(Qt.AlignLeft))
         #format_toolbar.addAction(self.alignl_action)
         #format_menu.addAction(self.alignl_action)
 
-        self.alignc_action = QAction(QIcon(os.path.join('images', 'edit-alignment-center.png')), "Align center", self)
+        self.alignc_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-alignment-center.png')), "Align center", self)
         self.alignc_action.setStatusTip("Align text center")
         self.alignc_action.setCheckable(True)
         self.alignc_action.triggered.connect(lambda: self.editor.setAlignment(Qt.AlignCenter))
         #format_toolbar.addAction(self.alignc_action)
         #format_menu.addAction(self.alignc_action)
 
-        self.alignr_action = QAction(QIcon(os.path.join('images', 'edit-alignment-right.png')), "Align right", self)
+        self.alignr_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-alignment-right.png')), "Align right", self)
         self.alignr_action.setStatusTip("Align text right")
         self.alignr_action.setCheckable(True)
         self.alignr_action.triggered.connect(lambda: self.editor.setAlignment(Qt.AlignRight))
         #format_toolbar.addAction(self.alignr_action)
         #format_menu.addAction(self.alignr_action)
 
-        self.alignj_action = QAction(QIcon(os.path.join('images', 'edit-alignment-justify.png')), "Justify", self)
+        self.alignj_action = QAction(QIcon(os.path.join(APP_PATH+'images', 'edit-alignment-justify.png')), "Justify", self)
         self.alignj_action.setStatusTip("Justify text")
         self.alignj_action.setCheckable(True)
         self.alignj_action.triggered.connect(lambda: self.editor.setAlignment(Qt.AlignJustify))
@@ -578,6 +580,10 @@ class MainWindow(QMainWindow):
         note = catalog.Note()
         note.nodeid = self.get_nodeid()
         note.content = self.editor.toMarkdown()
+        ## only save if the nodeid is valid
+        if (not note.nodeid):
+          self.editor.save_doc = False
+          return
         db.add(note)
         db.commit()
         print ("[Info] Saved.")
@@ -721,7 +727,16 @@ class MainWindow(QMainWindow):
       if root is not None:
         yield from recurse(root)
 
-    def load_nodes_from_catalog(self, parentid=None):
+    def load_nodes_from_catalog(self, parentid=None, clean=False):
+      ## if clean is set, clear out tree and docs before loading catalog
+      if clean:
+        self.docs = {}
+        #self.treeView.reset()
+        rootNode = self.treeModel.invisibleRootItem()
+        if (rootNode.hasChildren()):
+          rootNode.removeRows(0, rootNode.rowCount())
+
+      ## load data from sql
       db = settings.Session()
       nodes = db.query(catalog.NodeGraph).filter_by(parentid=parentid).all()
       for node in nodes:
@@ -755,6 +770,8 @@ class MainWindow(QMainWindow):
       self.editor.updating = True
       ## display the proper doc
       self.editor.setDocument(self.docs[uuid])
+      ## make sure we can edit
+      self.editor.setReadOnly(False)
       ## allow saving changes again
       self.editor.updating = False
 
@@ -869,54 +886,73 @@ class MainWindow(QMainWindow):
         dlg.show()
 
     def file_open(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open file", "", "HTML documents (*.html);Text documents (*.txt);All files (*.*)")
+        global NOTEBOOK_PATH
 
-        try:
-            with open(path, 'rU') as f:
-                text = f.read()
+        ## lock updates
+        self.save_doc = False
+        self.updating = True
 
-        except Exception as e:
-            self.dialog_critical(str(e))
-
-        else:
-            self.path = path
-            # Qt will automatically try and guess the format as txt/html
-            self.editor.setText(text)
-            self.update_title()
-
-    def file_save(self):
-        if self.path is None:
-            # If we do not have a path, we need to use Save As.
-            return self.file_saveas()
-
-        text = self.editor.toHtml() if splitext(self.path) in HTML_EXTENSIONS else self.editor.toPlainText()
-
-        try:
-            with open(self.path, 'w') as f:
-                f.write(text)
-
-        except Exception as e:
-            self.dialog_critical(str(e))
-
-    def file_saveas(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save file", "", "HTML documents (*.html);Text documents (*.txt);All files (*.*)")
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.DirectoryOnly)
+        dialog.exec()
+        #path = dialog.directory()
+        path = dialog.selectedFiles()
 
         if not path:
-            # If dialog is cancelled, will return ''
-            return
+          return
 
-        text = self.editor.toHtml() if splitext(path) in HTML_EXTENSIONS else self.editor.toPlainText()
+        ## don't reopen the same notebook
+        new_path = os.path.abspath(os.path.expanduser(path[0]))
+        if NOTEBOOK_PATH == new_path:
+          return
 
-        try:
-            with open(path, 'w') as f:
-                f.write(text)
+        ## we should init the notebook here
+        NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(path[0]))
+        ## invalidate the session before we open a new notebook
+        settings.Session = None
+        init_notebook()
 
-        except Exception as e:
-            self.dialog_critical(str(e))
+        self.load_nodes_from_catalog(clean=True)
+        self.update_title()
+        self.editor.setDocument(None)
+        self.editor.setReadOnly(True)
 
-        else:
-            self.path = path
-            self.update_title()
+        ## unlock
+        self.updating = False
+
+    #def file_save(self):
+    #    if self.path is None:
+    #        # If we do not have a path, we need to use Save As.
+    #        return self.file_saveas()
+
+    #    text = self.editor.toHtml() if splitext(self.path) in HTML_EXTENSIONS else self.editor.toPlainText()
+
+    #    try:
+    #        with open(self.path, 'w') as f:
+    #            f.write(text)
+
+    #    except Exception as e:
+    #        self.dialog_critical(str(e))
+
+    #def file_saveas(self):
+    #    path, _ = QFileDialog.getSaveFileName(self, "Save file", "", "HTML documents (*.html);Text documents (*.txt);All files (*.*)")
+
+    #    if not path:
+    #        # If dialog is cancelled, will return ''
+    #        return
+
+    #    text = self.editor.toHtml() if splitext(path) in HTML_EXTENSIONS else self.editor.toPlainText()
+
+    #    try:
+    #        with open(path, 'w') as f:
+    #            f.write(text)
+
+    #    except Exception as e:
+    #        self.dialog_critical(str(e))
+
+    #    else:
+    #        self.path = path
+    #        self.update_title()
 
     def file_print(self):
         dlg = QPrintDialog()
@@ -932,17 +968,41 @@ class MainWindow(QMainWindow):
 def init_sql(sql_path):
   print ('[Info] Setting up sql...')
   ## create our tables
-  try:
-    db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=True)
-    catalog.NodeGraph.__table__.create(bind=db_engine, checkfirst=True)
-    catalog.Note.__table__.create(bind=db_engine, checkfirst=True)
-  except:
-    raise
+  db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=True)
+  #try:
+  #  catalog.NodeGraph.__table__.create(bind=db_engine, checkfirst=True)
+  #  catalog.Note.__table__.create(bind=db_engine, checkfirst=True)
+  #except:
+  #  raise
+
+  ## apparently, sqlalchemy does not yet support ON CASCADE REPLACE, so we need to pass
+  ## some raw SQL to create our schema
+
+  db = db_engine.connect()
+
+  sql = """CREATE TABLE IF NOT EXISTS node_graph (
+  nodeid TEXT,
+  parentid TEXT,
+  basename TEXT,
+  icon TEXT,
+  mtime FLOAT,
+  UNIQUE(nodeid)
+);"""
+  result = db.execute(sql)
+
+  sql = """CREATE TABLE IF NOT EXISTS notes (
+  nodeid TEXT,
+  content TEXT,
+  mtime FLOAT,
+  UNIQUE(nodeid) ON CONFLICT REPLACE,
+  CONSTRAINT fk_nodeid
+    FOREIGN KEY (nodeid)
+    REFERENCES node_graph(nodeid)
+    ON DELETE CASCADE
+);"""
+  result = db.execute(sql)
   
 def init_notebook():
-  global NOTEBOOK_PATH
-  NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(settings.default_notebook))
-
   ## create the default notebook if it doesn't exist
   if not os.path.exists(NOTEBOOK_PATH):
     os.mkdir(NOTEBOOK_PATH)
@@ -956,7 +1016,11 @@ def init_notebook():
   if not settings.Session:
     db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True)
     settings.Session = sqlalchemy.orm.sessionmaker(bind=db_engine)
-  print ('[Info] Notebook created.')
+  ## make sure our cwd is the path of the notebook
+  os.chdir(NOTEBOOK_PATH)
+
+#global NOTEBOOK_PATH
+NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(settings.default_notebook))
 
 if __name__ == '__main__':
   init_notebook()

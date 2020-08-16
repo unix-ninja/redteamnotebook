@@ -13,6 +13,6 @@ class NodeGraph(Base):
 
 class Note(Base):
   __tablename__ = "notes"
-  nodeid = Column(String, primary_key=True)
+  nodeid = Column(String, ForeignKey("node_graph.nodeid", ondelete="CASCADE"), primary_key=True)
   content = Column(String)
   mtime = Column(Float)
