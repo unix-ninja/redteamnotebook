@@ -5,11 +5,12 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtPrintSupport import *
 
-import settings
+#import settings
 import sqlalchemy
 import catalog
 
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -27,7 +28,16 @@ IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
 NODE_ICON_PATH = os.path.abspath(APP_PATH+'/images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
-NOTEBOOK_PATH = None
+NOTEBOOK_PATH = os.path.abspath(os.path.expanduser('~/default.notebook'))
+SETTINGS = os.path.abspath(os.path.expanduser('~/.local/redteamnotebook.cfg'))
+
+##
+settings = {
+'last_open_notebook': NOTEBOOK_PATH
+}
+
+## initialize Session for the db
+Session = None
 
 
 def hexuuid():
@@ -103,7 +113,7 @@ class CAction(QWidgetAction):
     item.setIcon(self.sender().icon())
 
     ## fetch the node from the catalog
-    db = settings.Session()
+    db = Session()
     node = db.query(catalog.NodeGraph).get(uuid)
     ## update the icon in the catalog
     if node:
@@ -576,7 +586,7 @@ class MainWindow(QMainWindow):
     def timeout_save(self):
       if self.editor.save_doc:
         ## save editor content to catalog
-        db = settings.Session()
+        db = Session()
         note = catalog.Note()
         note.nodeid = self.get_nodeid()
         note.content = self.editor.toMarkdown()
@@ -599,7 +609,7 @@ class MainWindow(QMainWindow):
       basename = node[0].data(Qt.DisplayRole)
       uuid =  node[0].data(ROLE_NODE_UUID)
       ## fetch the node from the catalog
-      db = settings.Session()
+      db = Session()
       node = db.query(catalog.NodeGraph).get(uuid)
       ## update the basename in the catalog
       if node:
@@ -688,7 +698,7 @@ class MainWindow(QMainWindow):
       node = self.treeView.selectedIndexes()[0]
       if not node: return None
 
-      db = settings.Session()
+      db = Session()
       rootNode = self.treeModel.itemFromIndex(node)
 
       ## remove children from catalog
@@ -737,7 +747,7 @@ class MainWindow(QMainWindow):
           rootNode.removeRows(0, rootNode.rowCount())
 
       ## load data from sql
-      db = settings.Session()
+      db = Session()
       nodes = db.query(catalog.NodeGraph).filter_by(parentid=parentid).all()
       for node in nodes:
         if not parentid:
@@ -795,7 +805,7 @@ class MainWindow(QMainWindow):
 
       if record_catalog:
         ## record in catalog
-        db = settings.Session()
+        db = Session()
         node = catalog.NodeGraph()
         node.nodeid = uuid
         node.parentid = None
@@ -840,7 +850,7 @@ class MainWindow(QMainWindow):
       if record_catalog:
         print ('[Info] Recording in catalog...')
         ## record in catalog
-        db = settings.Session()
+        db = Session()
         node = catalog.NodeGraph()
         node.nodeid = uuid
         node.parentid = parent_node.data(ROLE_NODE_UUID)
@@ -907,15 +917,23 @@ class MainWindow(QMainWindow):
           return
 
         ## we should init the notebook here
-        NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(path[0]))
-        ## invalidate the session before we open a new notebook
-        settings.Session = None
+        NOTEBOOK_PATH = new_path
+        print (f'[Info] Opening notebook "{NOTEBOOK_PATH}"')
+
+        ## change the session to match the new file
+        set_session()
+
+        ## init the notebook
         init_notebook()
 
         self.load_nodes_from_catalog(clean=True)
         self.update_title()
         self.editor.setDocument(None)
         self.editor.setReadOnly(True)
+
+        ## update configs
+        settings['last_open_notebook'] = NOTEBOOK_PATH
+        save_settings()
 
         ## unlock
         self.updating = False
@@ -1001,7 +1019,12 @@ def init_sql(sql_path):
     ON DELETE CASCADE
 );"""
   result = db.execute(sql)
-  
+
+def set_session():
+  global Session
+  db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True)
+  Session = sqlalchemy.orm.sessionmaker(bind=db_engine)
+
 def init_notebook():
   ## create the default notebook if it doesn't exist
   if not os.path.exists(NOTEBOOK_PATH):
@@ -1013,16 +1036,24 @@ def init_notebook():
     os.mkdir(NOTEBOOK_PATH+'/images')
   if not os.path.exists(NOTEBOOK_PATH+'/catalog.sqlite'):
     init_sql(NOTEBOOK_PATH)
-  if not settings.Session:
-    db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True)
-    settings.Session = sqlalchemy.orm.sessionmaker(bind=db_engine)
+  if not Session:
+    set_session()
   ## make sure our cwd is the path of the notebook
   os.chdir(NOTEBOOK_PATH)
 
-#global NOTEBOOK_PATH
-NOTEBOOK_PATH = os.path.abspath(os.path.expanduser(settings.default_notebook))
+def save_settings():
+  with open(SETTINGS, 'w') as fp:
+    json.dump(settings, fp)
 
 if __name__ == '__main__':
+  if not os.path.exists(SETTINGS):
+    save_settings()
+  else:
+    with open(SETTINGS) as fp:
+      settings = json.load(fp)
+      NOTEBOOK_PATH = settings['last_open_notebook']
+
+  ## get our configs
   init_notebook()
   
   app = QApplication(sys.argv)
