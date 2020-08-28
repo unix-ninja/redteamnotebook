@@ -20,7 +20,6 @@ import uuid
 from math import ceil
 
 APP_PATH = os.path.dirname(os.path.realpath(__file__))+'/'
-#FONT_SIZES = [8, 12, 14, 18, 24, 36, 48, 64, 72]
 TEXT_STYLES = ['Title', 'Heading', 'Subheading', 'Body']
 TEXT_LEVEL = {"Body": 0, "Title": 1, "Heading": 2, "Subheading": 3}
 TEXT_SIZE = {"Body": 14, "Title": 26, "Heading": 20, "Subheading": 14}
@@ -93,7 +92,6 @@ class CAction(QWidgetAction):
     layout = QGridLayout(widget)
     layout.setSpacing(0)
     layout.setContentsMargins(2, 2, 2, 2)
-    #palette = self.palette()
 
     ## grab icons from our node path
     icons = os.listdir(NODE_ICON_PATH)
@@ -101,7 +99,6 @@ class CAction(QWidgetAction):
     count = len(icons)
     rows = count // round(count ** .5)
     for row in range(rows):
-      #for column in range(ceil(count / rows)):
       for column in range(5):
         if not len(icons): break
         icon = ""
@@ -211,7 +208,7 @@ class TextEdit(QTextEdit):
 
   def keyPressEvent(self, event):
     if (event.key() == Qt.Key_Return):
-      # we want to insert a regular formatted block when enter is pressed
+      ## we want to insert a regular formatted block when enter is pressed
       cursor = self.textCursor()
       blockFormat = QTextBlockFormat()
       blockFormat.setHeadingLevel(0)
@@ -297,7 +294,6 @@ class MainWindow(QMainWindow):
   def __init__(self, *args, **kwargs):
     super(MainWindow, self).__init__(*args, **kwargs)
 
-    #layout = QVBoxLayout()
     layout = QGridLayout()
     layout.setColumnStretch(1,1)
     layout.setSpacing(0)
@@ -307,20 +303,20 @@ class MainWindow(QMainWindow):
     self.editor = TextEdit()
     self.editor.updating = False
     self.editor.new_line = False
-    # Setup the QTextEdit editor configuration
+    ## Setup the QTextEdit editor configuration
     self.editor.setAutoFormatting(QTextEdit.AutoAll)
     self.editor.selectionChanged.connect(self.update_format)
     self.editor.cursorPositionChanged.connect(self.monitor_style)
-    # Initialize default font size.
+    ## Initialize default font size.
     font = QFont('Helvetica', 14)
     self.editor.setFont(font)
-    # We need to repeat the size to init the current format.
+    ## We need to repeat the size to init the current format.
     self.editor.setFontPointSize(14)
     ## start editor disabled, until we click a node
     self.editor.setReadOnly(True)
 
-    # self.path holds the path of the currently open file.
-    # If none, we haven't got a file open yet (or creating new).
+    ## self.path holds the path of the currently open file.
+    ## If none, we haven't got a file open yet (or creating new).
     self.path = None
 
     self.treeView = QTreeView()
@@ -349,8 +345,6 @@ class MainWindow(QMainWindow):
 
     self.status = QStatusBar()
     self.setStatusBar(self.status)
-
-    # Uncomment to disable native menubar on Mac
 
     file_toolbar = QToolBar("File")
     file_toolbar.setIconSize(QSize(14, 14))
@@ -446,7 +440,7 @@ class MainWindow(QMainWindow):
     self.addToolBar(format_toolbar)
     format_menu = self.menuBar().addMenu("&Format")
 
-    # We need references to these actions/settings to update as selection changes, so attach to self.
+    ## We need references to these actions/settings to update as selection changes, so attach to self.
     self.fonts = QFontComboBox()
     self.fonts.currentFontChanged.connect(self.editor.setCurrentFont)
 
@@ -512,14 +506,13 @@ class MainWindow(QMainWindow):
 
     format_menu.addSeparator()
 
-    # A list of all format-related widgets/actions, so we can disable/enable signals when updating.
+    ## A list of all format-related widgets/actions, so we can disable/enable signals when updating.
     self._format_actions = [
         self.fonts,
-    #    self.fontsize,
         self.bold_action,
         self.italic_action,
         self.underline_action,
-        # We don't need to disable signals for alignment, as they are paragraph-wide.
+        ## We don't need to disable signals for alignment, as they are paragraph-wide.
     ]
 
     ## change toolbar styles
@@ -528,7 +521,7 @@ class MainWindow(QMainWindow):
     edit_toolbar.setMovable(False)
     self.status.setStyle(QStyleFactory.create(toolbar_style))
 
-    # Initialize.
+    ## Initialize.
     self.update_format()
     self.update_title()
     self.resize(700,400)
@@ -605,7 +598,6 @@ class MainWindow(QMainWindow):
     menu = CMenu(self)
 
     if node:
-      #remove_action = menu.addAction("&Change Icon")
       new_port_action = QAction("&Add Port")
       new_port_action.triggered.connect(self.add_port)
       menu.addAction(new_port_action)
@@ -718,7 +710,6 @@ class MainWindow(QMainWindow):
     ## if clean is set, clear out tree and docs before loading catalog
     if clean:
       self.docs = {}
-      #self.treeView.reset()
       rootNode = self.treeModel.invisibleRootItem()
       if (rootNode.hasChildren()):
         rootNode.removeRows(0, rootNode.rowCount())
@@ -757,7 +748,6 @@ class MainWindow(QMainWindow):
   def fetch_note(self, signal):
     uuid = self.get_nodeid()
 
-    #if not uuid return
     if not uuid: return
 
     ## make sure we don't write the text we just loaded
@@ -819,8 +809,6 @@ class MainWindow(QMainWindow):
         if item.data(ROLE_NODE_UUID) == parentid:
           parent_node = item
           break
-      ## if we got here, the parentid is bad
-      #return
     else:
       idx = self.treeView.selectedIndexes()
       if not idx: return
@@ -866,7 +854,7 @@ class MainWindow(QMainWindow):
     toolbars/etc. in sync with the current edit state.
     :return:
     """
-    # Disable signals for all format widgets, so changing values here does not trigger further formatting.
+    ## Disable signals for all format widgets, so changing values here does not trigger further formatting.
     self.block_signals(self._format_actions, True)
 
     self.fonts.setCurrentFont(self.editor.currentFont())
