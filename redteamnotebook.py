@@ -781,6 +781,8 @@ class MainWindow(QMainWindow):
     ## select the new node in the tree
     if idx:
       self.treeView.setCurrentIndex(idx.index())
+
+    ## create a doc on this node and allow it to be saved
     self.docs[uuid] = QTextDocument()
     doc = self.docs[uuid]
     doc.contentsChange.connect(self.editor.onContentsChanged)
@@ -825,7 +827,12 @@ class MainWindow(QMainWindow):
     if icon:
       new_node.setIcon(QIcon(os.path.join(NODE_ICON_PATH, icon)))
     parent_node.appendRow(new_node)
+
+    ## create a doc on this node and allow it to be saved
     self.docs[uuid] = QTextDocument()
+    doc = self.docs[uuid]
+    doc.contentsChange.connect(self.editor.onContentsChanged)
+
     if idx:
       self.treeView.setExpanded(idx[0], True)
 
