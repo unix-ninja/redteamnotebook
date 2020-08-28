@@ -9,6 +9,7 @@ from PyQt5.QtPrintSupport import *
 import sqlalchemy
 import catalog
 
+from libnmap.parser import NmapParser
 import hashlib
 import json
 import os
@@ -30,6 +31,7 @@ NODE_ICON_PATH = os.path.abspath(APP_PATH+'/images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
 NOTEBOOK_PATH = os.path.abspath(os.path.expanduser('~/default.notebook'))
 SETTINGS = os.path.abspath(os.path.expanduser('~/.local/redteamnotebook.cfg'))
+OS_ICONS = {'Windows': 'os_win.png', 'Linux': 'os_linux.png', 'Mac OS X': 'os_apple.png', 'FreeBSD': 'os_freebsd.png' }
 
 ##
 settings = {
@@ -57,6 +59,7 @@ class StandardItem(QStandardItem):
     self.setForeground(color)
     self.setFont(fnt)
     self.setText(txt)
+    self.setToolTip(txt)
     self.setIcon(QIcon(os.path.join(NODE_ICON_PATH, 'folder.png')))
     self.setEditable(True)
     self.setData(fullref, Qt.UserRole)
@@ -370,6 +373,12 @@ class MainWindow(QMainWindow):
         new_node_action.triggered.connect(self.add_node)
         file_menu.addAction(new_node_action)
         file_toolbar.addAction(new_node_action)
+
+        import_nmap_action =  QAction(QIcon(os.path.join(APP_PATH+'images', 'zenmap.png')), "Import NMap", self)
+        import_nmap_action.setStatusTip("Import NMap")
+        import_nmap_action.triggered.connect(self.import_nmap)
+        file_menu.addAction(import_nmap_action)
+        file_toolbar.addAction(import_nmap_action)
 
         #save_file_action = QAction(QIcon(os.path.join('images', 'disk.png')), "Save", self)
         #save_file_action.setStatusTip("Save current page")
@@ -686,7 +695,7 @@ class MainWindow(QMainWindow):
         icon = 'stat_green.png'
 
       ## add port to protocol node
-      portid = self.add_node(name=f'{port} {desc}[{state}]', parentid=uuid, icon=icon)
+      portid = self.add_node(name=f'{port} {desc} [{state}]', parentid=uuid, icon=icon)
 
     def delete_node(self):
       node = self.treeView.selectedIndexes()[0]
@@ -770,6 +779,13 @@ class MainWindow(QMainWindow):
       uuid = node[0].data(ROLE_NODE_UUID)
       return uuid
       
+    def itemFromUUID(self, uuid):
+      rootNode = self.treeModel.invisibleRootItem()
+      for item in self.iterItems(rootNode):
+        if item.data(ROLE_NODE_UUID) == uuid:
+          return item
+      return None
+
     def fetch_note(self, signal):
       uuid = self.get_nodeid()
 
@@ -799,6 +815,10 @@ class MainWindow(QMainWindow):
       if icon:
         new_node.setIcon(QIcon(os.path.join(NODE_ICON_PATH, icon)))
       rootNode.appendRow(new_node)
+      idx = self.itemFromUUID(uuid)
+      ## select the new node in the tree
+      if idx:
+        self.treeView.setCurrentIndex(idx.index())
       self.docs[uuid] = QTextDocument()
       doc = self.docs[uuid]
       doc.contentsChange.connect(self.editor.onContentsChanged)
@@ -905,7 +925,6 @@ class MainWindow(QMainWindow):
         dialog = QFileDialog()
         dialog.setFileMode(QFileDialog.DirectoryOnly)
         dialog.exec()
-        #path = dialog.directory()
         path = dialog.selectedFiles()
 
         if not path:
@@ -973,15 +992,102 @@ class MainWindow(QMainWindow):
     #        self.update_title()
 
     def file_print(self):
-        dlg = QPrintDialog()
-        if dlg.exec_():
-            self.editor.print_(dlg.printer())
+      dlg = QPrintDialog()
+      if dlg.exec_():
+        self.editor.print_(dlg.printer())
 
     def update_title(self):
-        self.setWindowTitle("%s - Redteam Notebook" % (os.path.basename(self.path) if self.path else "Untitled"))
+      self.setWindowTitle("%s - Redteam Notebook" % (os.path.basename(self.path) if self.path else "Untitled"))
 
     def edit_toggle_wrap(self):
-        self.editor.setLineWrapMode( 1 if self.editor.lineWrapMode() == 0 else 0 )
+      self.editor.setLineWrapMode( 1 if self.editor.lineWrapMode() == 0 else 0 )
+
+    def import_nmap(self):
+      msg = QMessageBox()
+      idx = self.treeView.selectedIndexes()[0]
+      if not idx:
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("Please select a node before importing.")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+        return
+
+      ## grab our id for later
+      parentid = idx.data(ROLE_NODE_UUID)
+
+      ## open a dialog to select our file
+      dialog = QFileDialog()
+      filter = 'nmap xml file (*.xml)'
+      filename = dialog.getOpenFileName(None, 'Import NMap XML', '', filter)[0]
+
+      ## If we cancelled the dialog, just return
+      if not filename:
+        return
+
+      ## make sure the filename is valid
+      if not os.path.exists(filename):
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText("Unable to open file!")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+        return
+
+      ## lock updates
+      self.save_doc = False
+      self.updating = True
+
+      ## read xml file
+      nmap_report = NmapParser.parse_fromfile(filename)
+
+      ## load results into tree
+      for host in nmap_report.hosts:
+        if not host.is_up():
+          continue
+        hostid = None
+        icon = 'question.png'
+        ## generate the host label
+        if host.hostnames:
+          label = f'{host.address} ({host.hostnames[0]})'
+        else:
+          label = f'{host.address}'
+
+        ## search for an OS icon
+        for c in host.os_class_probabilities():
+          if c.osfamily in OS_ICONS:
+            icon = OS_ICONS[c.osfamily]
+            break
+
+        ## add our node
+        hostid = self.add_node(name=label, parentid=parentid, icon=icon)
+        if not hostid: continue
+
+        for service in host.services:
+          ## make sure we put services in the correct node
+          ### find our protocol node
+          proto_node = None
+          rootNode = self.itemFromUUID(hostid)
+          for item in self.iterItems(rootNode):
+            if item.data(Qt.DisplayRole) == service.protocol:
+              proto_node = item
+
+          if not proto_node:
+            ### add a node if we couldn't find one
+            uuid = self.add_node(name=service.protocol, parentid=rootNode.data(ROLE_NODE_UUID))
+          else:
+            ### use the node we found
+            uuid = proto_node.data(ROLE_NODE_UUID)
+
+          ## set our node icon
+          if service.state == 'closed':
+            icon = 'stat_red.png'
+          elif service.state == 'filtered':
+            icon = 'stat_yellow.png'
+          else:
+            icon = 'stat_green.png'
+          ## add port to protocol node
+          portid = self.add_node(name=f'{service.port} {service.protocol} [{service.state}]', parentid=uuid, icon=icon)
+
+      self.updating = False
 
 def init_sql(sql_path):
   print ('[Info] Setting up sql...')
