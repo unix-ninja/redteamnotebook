@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtPrintSupport import *
 
-#import settings
+import argparse
 import sqlalchemy
 import catalog
 
@@ -49,12 +49,17 @@ def splitext(p):
   return os.path.splitext(p)[1].lower()
 
 def info(text, level=None):
+  global args
+
   map = {
     'debug': '[debug] ',
     'error': '[err] ',
     'info': '[info] '
   }
   prefix=''
+
+  if level == 'debug' and not args.debug:
+    return
   if level in map:
     prefix=map[level]
   print(prefix+text)
@@ -568,7 +573,7 @@ class MainWindow(QMainWindow):
         return
       db.add(note)
       db.commit()
-      info ("Saved.", level='info')
+      info ("Saved.", level='debug')
       self.editor.save_doc = False
 
   def tree_changed(self, signal):
@@ -1083,6 +1088,12 @@ def save_settings():
     json.dump(settings, fp)
 
 if __name__ == '__main__':
+  ## parse arguments
+  parser = argparse.ArgumentParser(description='Redteam Notebook')
+  parser.add_argument('--debug', dest='debug', action='store_true', help='enable debug messages')
+  args = parser.parse_args()
+
+  ## load settings
   if not os.path.exists(SETTINGS):
     save_settings()
   else:
