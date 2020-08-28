@@ -51,7 +51,8 @@ def splitext(p):
 def info(text, level=None):
   map = {
     'debug': '[debug] ',
-    'error': '[err] '
+    'error': '[err] ',
+    'info': '[info] '
   }
   prefix=''
   if level in map:
@@ -567,7 +568,7 @@ class MainWindow(QMainWindow):
         return
       db.add(note)
       db.commit()
-      print ("[Info] Saved.")
+      info ("Saved.", level='info')
       self.editor.save_doc = False
 
   def tree_changed(self, signal):
@@ -770,7 +771,7 @@ class MainWindow(QMainWindow):
     if not uuid:
       uuid = hexuuid()
       record_catalog = True
-      print ('[Info] Recording in catalog...')
+      info ('Recording in catalog...', level='info')
     rootNode = self.treeModel.invisibleRootItem()
     fullref = '/'+name
     new_node = StandardItem(name, 14, fullref=fullref, uuid=uuid)
@@ -837,7 +838,7 @@ class MainWindow(QMainWindow):
       self.treeView.setExpanded(idx[0], True)
 
     if record_catalog:
-      print ('[Info] Recording in catalog...')
+      info ('Recording in catalog...', level='info')
       ## record in catalog
       db = Session()
       node = catalog.NodeGraph()
@@ -904,7 +905,7 @@ class MainWindow(QMainWindow):
 
     ## we should init the notebook here
     NOTEBOOK_PATH = new_path
-    print (f'[Info] Opening notebook "{NOTEBOOK_PATH}"')
+    info (f'Opening notebook "{NOTEBOOK_PATH}"', level='info')
 
     ## change the session to match the new file
     set_session()
@@ -1025,7 +1026,7 @@ class MainWindow(QMainWindow):
 ## END MAIN WINDOW CLASS
 
 def init_sql(sql_path):
-  print ('[Info] Setting up sql...')
+  info ('Setting up sql...', level='info')
   ## create our tables
   db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=True)
 
