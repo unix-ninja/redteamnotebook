@@ -182,9 +182,9 @@ class TextEdit(QTextEdit):
           if image.width() > max_width:
             image = image.scaledToWidth(max_width)
           ## add image to the doc
-          document.addResource(QTextDocument.ImageResource, u, image)
-          #cursor.insertImage(u.toLocalFile())
+          #document.addResource(QTextDocument.ImageResource, u, image)
           cursor.insertImage(saved_file)
+          block = cursor.block()
 
         else:
           ## If we hit a non-image or non-local URL break the loop and fall out
@@ -206,6 +206,33 @@ class TextEdit(QTextEdit):
 
     super(TextEdit, self).insertFromMimeData(source)
 
+  def resizeImages(self):
+    document = self.document()
+    max_width = self.size().width() - 10
+    cursor = self.textCursor()
+    #cursor.setPosition(0)
+
+    block = document.begin()
+    while block != document.end():
+      it = block.begin()
+      while not it.atEnd():
+        fragment = it.fragment()
+        if fragment.isValid():
+          if fragment.charFormat().isImageFormat():
+            img_fmt = fragment.charFormat().toImageFormat()
+            ## let's figure out our max image size
+            image = QImage()
+            image.load(img_fmt.name())
+            new_width = max_width if image.width() > max_width else image.width()
+            img_fmt.setWidth(new_width)
+            cursor.setPosition(fragment.position())
+            cursor.setPosition(fragment.position() + fragment.length(), QTextCursor.KeepAnchor)
+            cursor.setCharFormat(img_fmt)
+        it += 1
+      block = block.next()
+
+    return
+
   def keyPressEvent(self, event):
     if (event.key() == Qt.Key_Return):
       ## we want to insert a regular formatted block when enter is pressed
@@ -223,6 +250,7 @@ class TextEdit(QTextEdit):
 
       print ('block: '+ str(block))
       print ('weight: '+ str(cf.fontWeight()))
+      self.resizeImages()
     else:
       QTextEdit.keyPressEvent(self, event)
 
@@ -521,6 +549,9 @@ class MainWindow(QMainWindow):
     edit_toolbar.setMovable(False)
     self.status.setStyle(QStyleFactory.create(toolbar_style))
 
+    ## setup a resize timer here. We'll use this to resize images when the main window resizes
+    self.resize_timer = QTimer()
+
     ## Initialize.
     self.update_format()
     self.update_title()
@@ -530,10 +561,21 @@ class MainWindow(QMainWindow):
     ## set flag for auto saves
     self.editor.save_doc = False
 
+    ## make sure our timer isn't running from first resize. Then connect it.
+    self.resize_timer.stop()
+    self.resize_timer.timeout.connect(self.editor.resizeImages)
+
     ## setup our timer to auto save docs
     timer = QTimer(self)
     timer.timeout.connect(self.timeout_save)
     timer.start(5000)
+
+    self.installEventFilter(self)
+
+  def resizeEvent(self, event):
+    self.resize_timer.stop()
+    self.resize_timer.start(250)
+    super().resizeEvent(event)
 
   def monitor_style(self):
     if self.editor.updating == True:
@@ -756,6 +798,8 @@ class MainWindow(QMainWindow):
     self.editor.setDocument(self.docs[uuid])
     ## make sure we can edit
     self.editor.setReadOnly(False)
+    ## resize images on initial load
+    self.editor.resizeImages()
     ## allow saving changes again
     self.editor.updating = False
 
