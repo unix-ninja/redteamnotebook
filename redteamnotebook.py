@@ -24,7 +24,7 @@ TEXT_STYLES = ['Title', 'Heading', 'Subheading', 'Body']
 TEXT_LEVEL = {"Body": 0, "Title": 1, "Heading": 2, "Subheading": 3}
 TEXT_SIZE = {"Body": 14, "Title": 26, "Heading": 20, "Subheading": 14}
 TEXT_WEIGHT = {"Body": 50, "Title": 75, "Heading": 75, "Subheading": 75}
-IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
+IMAGE_EXTENSIONS = ['.jpg','.jpeg','.png','.bmp']
 HTML_EXTENSIONS = ['.htm', '.html']
 NODE_ICON_PATH = os.path.abspath(APP_PATH+'/images/nodes')
 ROLE_NODE_UUID = Qt.UserRole + 1
@@ -164,41 +164,47 @@ class TextEdit(QTextEdit):
     document = self.document()
     max_width = self.size().width()
     staging_file = 'images/stage.png'
-    image = None
+    images = []
 
     if source.hasUrls():
       ## set image from file
-      u = source.urls()[0]
-      file_ext = splitext(str(u.toLocalFile()))
-      if u.isLocalFile() and file_ext in IMAGE_EXTENSIONS:
-        image = QImage(u.toLocalFile())
+      for u in source.urls():
+        file_ext = splitext(str(u.toLocalFile()))
+        if u.isLocalFile() and file_ext in IMAGE_EXTENSIONS:
+          images.append(QImage(u.toLocalFile()))
     elif source.hasImage():
       ## set image from clipboard content
-      image = source.imageData()
+      images.append(source.imageData())
 
     ## save and add our image if we have one
-    if image:
-      ## make sure we insert images on blank lines. Insert one if we need to    
-      cursor.movePosition(QTextCursor.StartOfBlock)
-      cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
-      if cursor.selectedText().strip():
-        cursor.movePosition(QTextCursor.EndOfBlock)
+    if images:
+      for image in images:
+        ## make sure we insert images on blank lines. Insert one if we need to    
+        cursor.movePosition(QTextCursor.StartOfBlock)
+        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+        if cursor.selectedText().strip():
+          cursor.movePosition(QTextCursor.EndOfBlock)
+          cursor.insertText("\n")
+        
+        ## save our staging file
+        image.save(os.path.abspath(staging_file))
+        ## get a file hash to rename the staging file
+        img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
+        ## save the file in the notebook
+        saved_file = f"images/{img_hash}.png"
+        shutil.move(staging_file, saved_file)
+        ## resize img if it's larger than the editor
+        if image.width() > max_width:
+          image = image.scaledToWidth(max_width)
+        ## add image to the doc
+        cursor.insertImage(saved_file)
+        block = cursor.block()
+      ## we want to add a newline after our last image if it's the end of the document
+      if cursor.blockNumber() == document.blockCount() - 1:
         cursor.insertText("\n")
-      
-      ## save our staging file
-      image.save(os.path.abspath(staging_file))
-      ## get a file hash to rename the staging file
-      img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
-      ## save the file in the notebook
-      saved_file = f"images/{img_hash}.png"
-      shutil.move(staging_file, saved_file)
-      ## resize img if it's larger than the editor
-      if image.width() > max_width:
-        image = image.scaledToWidth(max_width)
-      ## add image to the doc
-      cursor.insertImage(saved_file)
-      block = cursor.block()
-      ## when we finish inserting our image, just return
+      ## make sure we resize our images after inserting
+      self.resizeImages()
+      ## when we finish processing our images, just return
       return
 
     ## If we hit a non-image or non-local URL, fall out to the super call & let Qt handle it
