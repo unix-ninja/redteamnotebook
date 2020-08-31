@@ -164,46 +164,44 @@ class TextEdit(QTextEdit):
     document = self.document()
     max_width = self.size().width()
     staging_file = 'images/stage.png'
+    image = None
 
     if source.hasUrls():
-
-      for u in source.urls():
-        file_ext = splitext(str(u.toLocalFile()))
-        if u.isLocalFile() and file_ext in IMAGE_EXTENSIONS:
-          image = QImage(u.toLocalFile())
-          image.save(os.path.abspath(staging_file))
-          ## get a file hash to rename the staging file
-          img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
-          ## save the file in the notebook
-          saved_file = f"images/{img_hash}.png"
-          shutil.move(staging_file, saved_file)
-          # TODO: Resize is broken
-          ## resize img if it's larger than the editor
-          if image.width() > max_width:
-            image = image.scaledToWidth(max_width)
-          ## add image to the doc
-          #document.addResource(QTextDocument.ImageResource, u, image)
-          cursor.insertImage(saved_file)
-          block = cursor.block()
-
-        else:
-          ## If we hit a non-image or non-local URL break the loop and fall out
-          ## to the super call & let Qt handle it
-          break
-
-      else:
-        ## If all were valid images, finish here.
-        return
-
-
+      ## set image from file
+      u = source.urls()[0]
+      file_ext = splitext(str(u.toLocalFile()))
+      if u.isLocalFile() and file_ext in IMAGE_EXTENSIONS:
+        image = QImage(u.toLocalFile())
     elif source.hasImage():
-      ## clipboard content will be processed here
+      ## set image from clipboard content
       image = source.imageData()
-      uuid = hexuuid()
-      document.addResource(QTextDocument.ImageResource, int(uuid, 16), image)
-      cursor.insertImage(uuid)
+
+    ## save and add our image if we have one
+    if image:
+      ## make sure we insert images on blank lines. Insert one if we need to    
+      cursor.movePosition(QTextCursor.StartOfBlock)
+      cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+      if cursor.selectedText().strip():
+        cursor.movePosition(QTextCursor.EndOfBlock)
+        cursor.insertText("\n")
+      
+      ## save our staging file
+      image.save(os.path.abspath(staging_file))
+      ## get a file hash to rename the staging file
+      img_hash = hashlib.md5(open(staging_file,'rb').read()).hexdigest()
+      ## save the file in the notebook
+      saved_file = f"images/{img_hash}.png"
+      shutil.move(staging_file, saved_file)
+      ## resize img if it's larger than the editor
+      if image.width() > max_width:
+        image = image.scaledToWidth(max_width)
+      ## add image to the doc
+      cursor.insertImage(saved_file)
+      block = cursor.block()
+      ## when we finish inserting our image, just return
       return
 
+    ## If we hit a non-image or non-local URL, fall out to the super call & let Qt handle it
     super(TextEdit, self).insertFromMimeData(source)
 
   def resizeImages(self):
