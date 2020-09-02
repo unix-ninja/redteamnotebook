@@ -6,9 +6,11 @@ Redteam Notebook is an experiment to address digital intelligence archiving on o
 
 ## Setting it up
 
-It is recommended to use a Python virtual environment (though it's not a requirement to do so.)
+It is recommended to use a Python virtual environment (though it's not a requirement to do so.) You can follow the steps below.
 
-Using pipenv, you can follow these steps:
+### Using pipenv
+
+Make sure you have pipenv installed. You can install with pip3 or your package manager before proceeding.
 
 ```
 $ git clone https://github.com/unix-ninja/redteamnotebook.git
@@ -18,7 +20,20 @@ $ pipenv install -r requirements.txt
 $ pipenv run python redteamnotebook.py
 ```
 
-Note: For Python 3.8, please use the alternate requirements-3.8.txt file. This replaces libnmap with natlas-libnmap, as the former is not currently available for Python 3.8:
+### Using python3 venv
+
+Instead of a third party package like pipenv, you could try venv which is now built into Python 3. No additional setup is required.
+
+```
+$ git clone https://github.com/unix-ninja/redteamnotebook.git
+$ cd redteamnotebook/
+$ python3 -m venv .
+$ source bin/activate
+$ pip install -r requirements.txt
+$ python redteamnotebook.py
+```
+
+> Note: For Python 3.8, please use the alternate requirements-3.8.txt file. This replaces libnmap with natlas-libnmap, as the former is not currently available for Python 3.8:
 
 ```
 $ pipenv install -r requirements-3.8.txt
