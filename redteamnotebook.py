@@ -6,7 +6,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtPrintSupport import *
 
 import argparse
+import platform
 import sqlalchemy
+import subprocess
 import catalog
 
 from libnmap.parser import NmapParser
@@ -257,6 +259,28 @@ class TextEdit(QTextEdit):
       self.resizeImages()
     else:
       QTextEdit.keyPressEvent(self, event)
+
+  def mouseDoubleClickEvent(self,event):
+    super().mouseDoubleClickEvent(event)
+    cursor = self.textCursor()
+    block = cursor.block()
+    it = block.begin()
+    while not it.atEnd():
+      fragment = it.fragment()
+      if fragment.isValid():
+        if fragment.charFormat().isImageFormat():
+          img_fmt = fragment.charFormat().toImageFormat()
+          self.openfile(img_fmt.name())
+          break
+      it += 1
+
+  def openfile(self, filename):
+    if platform.system() == 'Darwin':       # macOS
+      subprocess.call(('open', filename))
+    elif platform.system() == 'Windows':    # Windows
+      os.startfile(filename)
+    else:                                   # linux variants
+      subprocess.call(('xdg-open', filename))
 
   def onContentsChanged(self):
     if self.updating: return
