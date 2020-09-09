@@ -65,6 +65,17 @@ def info(text, level=None):
     prefix=map[level]
   print(prefix+text)
 
+def move_node(uuid=None, parentid=None):
+  db = Session()
+  node = db.query(catalog.NodeGraph).get(uuid)
+  ## update the icon in the catalog
+  if node:
+    node.parentid = parentid
+    db.add(node)
+    db.commit()
+  else:
+    info ('Unable to find node in catalog.', level='error')
+
 class StandardItem(QStandardItem):
   def __init__(self, txt='', font_size=14, fullref=None, uuid=None, set_bold=False, color=QColor(0, 0, 0)):
     super().__init__()
@@ -346,6 +357,43 @@ class CDialog(QDialog):
     self.layout.addWidget(self.buttonBox)
     self.setLayout(self.layout)
 
+class CTreeView(QTreeView):
+  def __init__(self):
+    QTreeView.__init__(self)
+    self.setDragEnabled(True)
+    self.setAcceptDrops(True)
+    self.setDropIndicatorShown(True)
+    self.setDragDropMode(QAbstractItemView.InternalMove)
+    self.setUniformRowHeights(True)
+
+  def startDrag(self, actions):
+    self._node = self.selectedIndexes()[0]
+    self._prev_parent = self._node.parent()
+    return QTreeView.startDrag(self, actions)
+
+  def dropEvent(self, event):
+    idx = self.indexAt(event.pos())
+    dip = self.dropIndicatorPosition()
+    if dip == QAbstractItemView.AboveItem:
+      parent = idx.parent()
+    elif dip == QAbstractItemView.BelowItem:
+      parent = idx.parent()
+    elif dip == QAbstractItemView.OnItem:
+      parent = idx
+    elif dip == QAbstractItemView.OnViewport:
+      pass
+
+    if not parent:
+      parent = self.treeModel.invisibleRootItem()
+
+    uuid = self._node.data(ROLE_NODE_UUID)
+    parentid = parent.data(ROLE_NODE_UUID)
+
+    move_node(uuid, parentid)
+    
+    super().dropEvent(event)
+
+
 class MainWindow(QMainWindow):
   def __init__(self, *args, **kwargs):
     super(MainWindow, self).__init__(*args, **kwargs)
@@ -375,7 +423,7 @@ class MainWindow(QMainWindow):
     ## If none, we haven't got a file open yet (or creating new).
     self.path = None
 
-    self.treeView = QTreeView()
+    self.treeView = CTreeView()
     self.treeView.setStyleSheet("QTreeView { selection-background-color: #c3e3ff;} ")
 
     self.treeModel = QStandardItemModel()
@@ -795,7 +843,6 @@ class MainWindow(QMainWindow):
       ## add child nodes, recursively
       self.load_nodes_from_catalog(node.nodeid)
       ## set content of this node
-      ## TODO: maybe we implement lazy loading?
       note = db.query(catalog.Note).get(node.nodeid)
       if note:
         self.docs[node.nodeid].setMarkdown(note.content)
@@ -1091,9 +1138,10 @@ class MainWindow(QMainWindow):
 ## END MAIN WINDOW CLASS
 
 def init_sql(sql_path):
+  global args
   info ('Setting up sql...', level='info')
   ## create our tables
-  db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=True)
+  db_engine = sqlalchemy.create_engine(f'sqlite:///{NOTEBOOK_PATH}/catalog.sqlite', convert_unicode=True, echo=args.debug)
 
   ## apparently, sqlalchemy does not yet support ON CASCADE REPLACE, so we need to pass
   ## some raw SQL to create our schema
