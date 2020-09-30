@@ -1050,13 +1050,16 @@ class MainWindow(QMainWindow):
 
   def import_nmap(self):
     msg = QMessageBox()
-    idx = self.treeView.selectedIndexes()[0]
+    idx = self.treeView.selectedIndexes()
     if not idx:
       msg.setIcon(QMessageBox.Warning)
       msg.setText("Please select a node before importing.")
       msg.setStandardButtons(QMessageBox.Ok)
       msg.exec_()
       return
+
+    ## make sure we've selected the first index
+    idx = idx[0]
 
     ## grab our id for later
     parentid = idx.data(ROLE_NODE_UUID)
